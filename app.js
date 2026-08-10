@@ -10,6 +10,7 @@ const state = {
   dictionaries: {},
   cache: { parsed: new Map(), merged: new Map() },
   lastSearch: null,
+  visibleCount: 50,
 };
 
 const sourceEls = [
@@ -33,6 +34,7 @@ const resultFilterEl = document.getElementById('resultFilter');
 const filterErrorEl = document.getElementById('filterError');
 const summaryEl = document.getElementById('summary');
 const resultsEl = document.getElementById('results');
+const loadMoreEl = document.getElementById('loadMore');
 
 function escapeHtml(value) {
   return String(value)
@@ -210,8 +212,9 @@ function renderWordLine(row, sourceIndex, selectedIds) {
   `;
 }
 
-function renderResults() {
+function renderResults(resetCount = false) {
   if (!state.lastSearch) return;
+  if (resetCount) state.visibleCount = 50;
   const { result, settings, elapsed } = state.lastSearch;
   let rows = result.results;
   const pattern = resultFilterEl.value;
@@ -225,14 +228,16 @@ function renderResults() {
     }
   }
   rows = sortRows(rows, sortOrderEl.value);
-  summaryEl.textContent = pattern
-    ? `表示: ${rows.length}件 / 全${result.results.length}件 / ${elapsed}ms`
-    : `ヒット数: ${rows.length} / ${elapsed}ms`;
+  const matchedCount = rows.length;
+  const displayLimit = Math.min(settings.maxResults, matchedCount);
+  const visibleRows = rows.slice(0, Math.min(state.visibleCount, displayLimit));
+  summaryEl.textContent = `表示: ${visibleRows.length}件 / 該当${matchedCount}件 / ${elapsed}ms`;
+  loadMoreEl.hidden = visibleRows.length >= displayLimit;
   if (rows.length === 0) {
     resultsEl.innerHTML = '<div class="empty">ヒットなし</div>';
     return;
   }
-  resultsEl.innerHTML = rows.map((row, index) => `
+  resultsEl.innerHTML = visibleRows.map((row, index) => `
     <article class="result-item" style="--result-index:${index}">
       <div class="result-head">
         <div class="result-title">${index + 1}. ${row.words.map(escapeHtml).join(' / ')}</div>
@@ -258,11 +263,12 @@ function runSearch() {
         const result = ShiftMatchCore.search({
           ...settings,
           parentSmallKana: true,
+          lengthOrder: sortOrderEl.value,
           operationLimit: 5000000,
           words: mergedWords(settings.dictIds),
         });
         state.lastSearch = { result, settings, elapsed: Math.round(performance.now() - startedAt) };
-        renderResults();
+        renderResults(true);
       } catch (error) {
         summaryEl.textContent = '検索エラー';
         errorBoxEl.textContent = error.message || String(error);
@@ -291,8 +297,12 @@ function init() {
   });
   toggleSource3El.addEventListener('click', toggleSource3);
   searchBtnEl.addEventListener('click', runSearch);
-  sortOrderEl.addEventListener('change', renderResults);
-  resultFilterEl.addEventListener('input', renderResults);
+  sortOrderEl.addEventListener('change', () => renderResults(true));
+  resultFilterEl.addEventListener('input', () => renderResults(true));
+  loadMoreEl.addEventListener('click', () => {
+    state.visibleCount += 50;
+    renderResults();
+  });
 }
 
 try {

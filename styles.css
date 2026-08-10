@@ -98,6 +98,7 @@ legend { padding: 0 6px; font-size: 13px; font-weight: 700; }
 .from-char { color: #755982; } .shift-char { color: var(--accent-strong); font-size: 12px; } .to-char { color: #28364c; }
 .dict-tag { padding: 3px 10px; color: #5d4770; background: #f3edf8; font-size: 12px; }
 .more-note { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.load-more { display: block; width: min(360px,100%); margin: 12px auto 2px; font-weight: 800; }
 @media (max-width:900px) { .settings-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:760px) { .input-grid,.dict-groups,.settings-grid { grid-template-columns:1fr; } .results-header,.result-tools { align-items:stretch; } .result-filter input { width:100%; } h1 { font-size:28px; } }
 @keyframes panel-fade-in { from { opacity:0;transform:translateY(6px) } to { opacity:1;transform:translateY(0) } }

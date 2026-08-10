@@ -105,119 +105,146 @@
     const allowedLengths = new Set();
     for (let n = config.nMin; n <= config.nMax; n += 1) allowedLengths.add(n);
     const trie = buildTrie(config.words, allowedLengths);
-    const shifts = [];
-    for (let shift = config.shiftMin; shift <= config.shiftMax; shift += 1) shifts.push(shift);
+    const wordsByLength = new Map();
+    for (const rawWord of config.words) {
+      const word = normalizeDictionaryWord(rawWord);
+      const chars = splitChars(word);
+      if (!allowedLengths.has(chars.length) || chars.some((char) => !sequenceForChar(char))) continue;
+      if (!wordsByLength.has(chars.length)) wordsByLength.set(chars.length, []);
+      wordsByLength.get(chars.length).push({ word, chars });
+    }
 
     const results = [];
-    const maxResults = Math.max(1, config.maxResults || 1000);
+    const resultLimit = Math.max(1000, config.resultLimit || 100000);
     const operationLimit = Math.max(1000, config.operationLimit || 5000000);
     let operations = 0;
     let truncatedByLimit = false;
     let truncatedByResults = false;
+    const groupCount = config.positionGroups ? new Set(config.positionGroups).size : 0;
+    const transitionCache = new Map();
+    function transitionsFor(targetChar) {
+      if (transitionCache.has(targetChar)) return transitionCache.get(targetChar);
+      const targetSequence = sequenceForChar(targetChar);
+      const transitions = [];
+      for (const position of selectablePositions) {
+        const firstChar = sourceChars[0][position];
+        const firstSequence = sequenceForChar(firstChar);
+        if (firstSequence !== targetSequence) continue;
+        const possibleShifts = [];
+        if (config.loopAllowed) {
+          for (let shift = config.shiftMin; shift <= config.shiftMax; shift += 1) {
+            const index = ((firstSequence.indexOf(firstChar) + shift) % firstSequence.length + firstSequence.length) % firstSequence.length;
+            if (firstSequence[index] === targetChar) possibleShifts.push(shift);
+          }
+        } else {
+          const shift = firstSequence.indexOf(targetChar) - firstSequence.indexOf(firstChar);
+          if (shift >= config.shiftMin && shift <= config.shiftMax) possibleShifts.push(shift);
+        }
+        for (const shift of possibleShifts) {
+          const shiftedChars = [];
+          let valid = true;
+          for (let sourceIndex = 1; sourceIndex < sourceChars.length; sourceIndex += 1) {
+            const sourceChar = sourceChars[sourceIndex][position];
+            const sequence = sequenceForChar(sourceChar);
+            const rawIndex = sequence.indexOf(sourceChar) + shift;
+            if (!config.loopAllowed && (rawIndex < 0 || rawIndex >= sequence.length)) {
+              valid = false;
+              break;
+            }
+            const shiftedIndex = ((rawIndex % sequence.length) + sequence.length) % sequence.length;
+            shiftedChars[sourceIndex] = sequence[shiftedIndex];
+          }
+          if (valid) transitions.push({ position, shift, shiftedChars });
+        }
+      }
+      transitionCache.set(targetChar, transitions);
+      return transitions;
+    }
+    const lengths = [];
+    if (config.lengthOrder === 'long') {
+      for (let n = config.nMax; n >= config.nMin; n -= 1) lengths.push(n);
+    } else {
+      for (let n = config.nMin; n <= config.nMax; n += 1) lengths.push(n);
+    }
 
     outer:
-    for (let n = config.nMin; n <= config.nMax; n += 1) {
-      const positions = [];
-      const used = new Array(maxLength).fill(false);
+    for (const n of lengths) {
+      for (const target of wordsByLength.get(n) || []) {
+        const positions = [];
+        const used = new Array(maxLength).fill(false);
+        const shiftVector = [];
+        const outputChars = sources.map(() => []);
+        const nodes = sources.map((_source, sourceIndex) => (sourceIndex === 0 ? null : trie));
 
-      function choosePosition(depth) {
-        if (results.length >= maxResults || operations >= operationLimit) return;
-        if (config.positionGroups) {
-          const covered = new Set(positions.map((position) => config.positionGroups[position])).size;
-          const groupCount = new Set(config.positionGroups).size;
-          if (groupCount - covered > n - depth) return;
-        }
-        if (depth === n) {
+        function matchTarget(depth, zeroCount) {
+          if (results.length >= resultLimit || operations >= operationLimit) return;
+          if (zeroCount > config.zeroMax || zeroCount + (n - depth) < config.zeroMin) return;
           if (config.positionGroups) {
             const covered = new Set(positions.map((position) => config.positionGroups[position])).size;
-            if (covered !== new Set(config.positionGroups).size) return;
+            if (groupCount - covered > n - depth) return;
           }
-          const nodes = sources.map(() => trie);
-          const outputChars = sources.map(() => []);
-          const shiftVector = [];
-
-          function chooseShift(outputIndex, zeroCount) {
-            if (results.length >= maxResults || operations >= operationLimit) return;
-            if (zeroCount > config.zeroMax || zeroCount + (n - outputIndex) < config.zeroMin) return;
-            if (outputIndex === n) {
-              if (zeroCount < config.zeroMin || zeroCount > config.zeroMax) return;
-              if (!nodes.every((node) => node.terminal)) return;
-              const words = outputChars.map((chars) => chars.join(''));
-              results.push({
-                n,
-                positions: positions.map((position) => position + 1),
-                shifts: [...shiftVector],
-                sourceFragments: sourceChars.map((chars) => positions.map((position) => chars[position]).join('')),
-                words,
-              });
-              return;
+          if (depth === n) {
+            if (zeroCount < config.zeroMin || zeroCount > config.zeroMax) return;
+            if (config.positionGroups) {
+              const covered = new Set(positions.map((position) => config.positionGroups[position])).size;
+              if (covered !== groupCount) return;
             }
-
-            const position = positions[outputIndex];
-            for (const shift of shifts) {
-              operations += 1;
-              if (operations >= operationLimit) return;
-              const nextNodes = [];
-              const nextChars = [];
-              let valid = true;
-              for (let sourceIndex = 0; sourceIndex < sourceChars.length; sourceIndex += 1) {
-                const sourceChar = sourceChars[sourceIndex][position];
-                const sequence = sequenceForChar(sourceChar);
-                const rawShiftedIndex = sequence.indexOf(sourceChar) + shift;
-                if (!config.loopAllowed && (rawShiftedIndex < 0 || rawShiftedIndex >= sequence.length)) {
-                  valid = false;
-                  break;
-                }
-                const shiftedIndex = ((rawShiftedIndex % sequence.length) + sequence.length) % sequence.length;
-                const shiftedChar = sequence[shiftedIndex];
-                const nextNode = nodes[sourceIndex].children.get(shiftedChar);
-                if (!nextNode) {
-                  valid = false;
-                  break;
-                }
-                nextNodes.push(nextNode);
-                nextChars.push(shiftedChar);
-              }
-              if (!valid) continue;
-
-              const previousNodes = [...nodes];
-              for (let index = 0; index < nodes.length; index += 1) {
-                nodes[index] = nextNodes[index];
-                outputChars[index].push(nextChars[index]);
-              }
-              shiftVector.push(shift);
-              chooseShift(outputIndex + 1, zeroCount + (shift === 0 ? 1 : 0));
-              shiftVector.pop();
-              for (let index = 0; index < nodes.length; index += 1) {
-                outputChars[index].pop();
-                nodes[index] = previousNodes[index];
-              }
-            }
+            if (!nodes.slice(1).every((node) => node.terminal)) return;
+            results.push({
+              n,
+              positions: positions.map((position) => position + 1),
+              shifts: [...shiftVector],
+              sourceFragments: sourceChars.map((chars) => positions.map((position) => chars[position]).join('')),
+              words: [target.word, ...outputChars.slice(1).map((chars) => chars.join(''))],
+            });
+            return;
           }
 
-          chooseShift(0, 0);
-          return;
+          const targetChar = target.chars[depth];
+          for (const transition of transitionsFor(targetChar)) {
+            const { position, shift, shiftedChars } = transition;
+            if (used[position]) continue;
+            operations += 1;
+            if (operations >= operationLimit) return;
+            const nextNodes = [];
+            let valid = true;
+            for (let sourceIndex = 1; sourceIndex < sourceChars.length; sourceIndex += 1) {
+              const nextNode = nodes[sourceIndex].children.get(shiftedChars[sourceIndex]);
+              if (!nextNode) {
+                valid = false;
+                break;
+              }
+              nextNodes[sourceIndex] = nextNode;
+            }
+            if (!valid) continue;
+
+            used[position] = true;
+            positions.push(position);
+            shiftVector.push(shift);
+            const previousNodes = [...nodes];
+            for (let sourceIndex = 1; sourceIndex < sourceChars.length; sourceIndex += 1) {
+              nodes[sourceIndex] = nextNodes[sourceIndex];
+              outputChars[sourceIndex].push(shiftedChars[sourceIndex]);
+            }
+            matchTarget(depth + 1, zeroCount + (shift === 0 ? 1 : 0));
+            for (let sourceIndex = 1; sourceIndex < sourceChars.length; sourceIndex += 1) outputChars[sourceIndex].pop();
+            for (let sourceIndex = 1; sourceIndex < sourceChars.length; sourceIndex += 1) nodes[sourceIndex] = previousNodes[sourceIndex];
+            shiftVector.pop();
+            positions.pop();
+            used[position] = false;
+            if (results.length >= resultLimit || operations >= operationLimit) return;
+          }
         }
 
-        for (const position of selectablePositions) {
-          if (used[position]) continue;
-          used[position] = true;
-          positions.push(position);
-          choosePosition(depth + 1);
-          positions.pop();
-          used[position] = false;
-          if (results.length >= maxResults || operations >= operationLimit) return;
+        matchTarget(0, 0);
+        if (results.length >= resultLimit) {
+          truncatedByResults = true;
+          break outer;
         }
-      }
-
-      choosePosition(0);
-      if (results.length >= maxResults) {
-        truncatedByResults = true;
-        break outer;
-      }
-      if (operations >= operationLimit) {
-        truncatedByLimit = true;
-        break outer;
+        if (operations >= operationLimit) {
+          truncatedByLimit = true;
+          break outer;
+        }
       }
     }
 
