@@ -2,6 +2,9 @@
   'use strict';
 
   const GOJUON = Array.from('あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん');
+  const DAKUON = Array.from('がぎぐげござじずぜぞだぢづでど');
+  const B_DAKUON = Array.from('ばびぶべぼ');
+  const HANDAKUON = Array.from('ぱぴぷぺぽ');
   const ALPHABET = Array.from('abcdefghijklmnopqrstuvwxyz');
   const SMALL_KANA = {
     ぁ: 'あ', ぃ: 'い', ぅ: 'う', ぇ: 'え', ぉ: 'お',
@@ -45,6 +48,9 @@
 
   function sequenceForChar(char) {
     if (GOJUON.includes(char)) return GOJUON;
+    if (DAKUON.includes(char)) return DAKUON;
+    if (B_DAKUON.includes(char)) return B_DAKUON;
+    if (HANDAKUON.includes(char)) return HANDAKUON;
     if (ALPHABET.includes(char)) return ALPHABET;
     return null;
   }
@@ -71,15 +77,16 @@
     if (sources.some((value) => !value)) throw new Error('使用する文字列をすべて入力してください。');
     const lengths = sources.map((value) => splitChars(value).length);
     if (!lengths.every((length) => length === lengths[0])) throw new Error('文字列の長さをそろえてください。');
-    const unsupported = [...new Set(sources.flatMap((value) => splitChars(value)).filter((char) => !sequenceForChar(char)))];
-    if (unsupported.length) throw new Error(`シフトできない文字が含まれています：${unsupported.join('、')}`);
     const maxLength = lengths[0];
+    const sourceChars = sources.map(splitChars);
+    const selectablePositions = Array.from({ length: maxLength }, (_, position) => position)
+      .filter((position) => sourceChars.every((chars) => sequenceForChar(chars[position])));
     const numericKeys = ['nMin', 'nMax', 'shiftMin', 'shiftMax', 'zeroMin', 'zeroMax'];
     for (const key of numericKeys) {
       if (!Number.isInteger(config[key])) throw new Error('検索設定には整数を指定してください。');
     }
-    if (config.nMin < 1 || config.nMax < config.nMin || config.nMax > maxLength) {
-      throw new Error(`拾う文字数は1〜${maxLength}の範囲で指定してください。`);
+    if (config.nMin < 1 || config.nMax < config.nMin || config.nMax > selectablePositions.length) {
+      throw new Error(`拾う文字数は1〜${selectablePositions.length}の範囲で指定してください。`);
     }
     if (config.shiftMin > config.shiftMax) throw new Error('シフト最小値は最大値以下にしてください。');
     if (config.zeroMin < 0 || config.zeroMax < config.zeroMin || config.zeroMax > config.nMax) {
@@ -90,11 +97,11 @@
       const groupCount = new Set(config.positionGroups).size;
       if (config.nMax < groupCount) throw new Error('拾う文字数はカンマ区画の数以上にしてください。');
     }
-    return { sources, sourceChars: sources.map(splitChars), maxLength };
+    return { sources, sourceChars, maxLength, selectablePositions };
   }
 
   function search(config) {
-    const { sources, sourceChars, maxLength } = validateConfig(config);
+    const { sources, sourceChars, maxLength, selectablePositions } = validateConfig(config);
     const allowedLengths = new Set();
     for (let n = config.nMin; n <= config.nMax; n += 1) allowedLengths.add(n);
     const trie = buildTrie(config.words, allowedLengths);
@@ -192,7 +199,7 @@
           return;
         }
 
-        for (let position = 0; position < maxLength; position += 1) {
+        for (const position of selectablePositions) {
           if (used[position]) continue;
           used[position] = true;
           positions.push(position);
@@ -217,7 +224,7 @@
     return { results, operations, truncatedByLimit, truncatedByResults, normalizedSources: sources };
   }
 
-  const api = { GOJUON, ALPHABET, SMALL_KANA, normalizeKana, normalizeDictionaryWord, parseDictionary, buildTrie, sequenceForChar, search };
+  const api = { GOJUON, DAKUON, B_DAKUON, HANDAKUON, ALPHABET, SMALL_KANA, normalizeKana, normalizeDictionaryWord, parseDictionary, buildTrie, sequenceForChar, search };
   globalScope.ShiftMatchCore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

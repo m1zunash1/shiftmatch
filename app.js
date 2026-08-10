@@ -98,15 +98,17 @@ function parseAllSources(requireValues = true) {
   let positionGroups = null;
   if (pickupEnabled) {
     const sectionCounts = parsed.map((entry) => entry.sections.length);
-    const allLengths = parsed.flatMap((entry) => entry.sections.map((section) => Array.from(section).length));
     const sameCount = sectionCounts.every((count) => count === sectionCounts[0]);
-    const sameLength = allLengths.every((length) => length === allLengths[0]);
-    if (!sameCount || !sameLength) {
+    const sectionLengths = parsed.map((entry) => entry.sections.map((section) => Array.from(section).length));
+    const correspondingLengthsMatch = sameCount && sectionLengths[0].every(
+      (length, sectionIndex) => sectionLengths.every((lengths) => lengths[sectionIndex] === length),
+    );
+    if (!correspondingLengthsMatch) {
       throw new Error('カンマで区切られた文字列はいずれも同じ長さにしてください');
     }
     positionGroups = [];
     for (let group = 0; group < sectionCounts[0]; group += 1) {
-      for (let index = 0; index < allLengths[0]; index += 1) positionGroups.push(group);
+      for (let index = 0; index < sectionLengths[0][group]; index += 1) positionGroups.push(group);
     }
   }
 

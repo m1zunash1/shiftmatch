@@ -15,6 +15,9 @@ assert.equal(core.normalizeKana('ショウユ'), 'しようゆ');
 assert.equal(core.normalizeKana('しょうゆ'), 'しようゆ');
 assert.equal(core.normalizeDictionaryWord('しょうゆ'), 'しょうゆ');
 assert.equal(core.normalizeDictionaryWord('CAT'), 'cat');
+assert.deepEqual(core.DAKUON, Array.from('がぎぐげござじずぜぞだぢづでど'));
+assert.deepEqual(core.B_DAKUON, Array.from('ばびぶべぼ'));
+assert.deepEqual(core.HANDAKUON, Array.from('ぱぴぷぺぽ'));
 assert(words.has('しょうゆ'));
 assert(!words.has('しようゆ'));
 
@@ -75,5 +78,19 @@ const pickup = core.search({
 });
 assert(pickup.results.length > 0);
 assert(pickup.results.every((entry) => new Set(entry.positions.map((position) => (position <= 2 ? 0 : 1))).size === 2));
+
+const voiced = core.search({
+  sources: ['がばぱ', 'がばぱ'], parentSmallKana: true, nMin: 3, nMax: 3,
+  shiftMin: 1, shiftMax: 1, zeroMin: 0, zeroMax: 3, loopAllowed: false,
+  maxResults: 10, words: new Set(['ぎびぴ']),
+});
+assert(voiced.results.some((entry) => entry.words.join('/') === 'ぎびぴ/ぎびぴ'));
+
+const ignoredUnsupported = core.search({
+  sources: ['あーい', 'あ・い'], parentSmallKana: true, nMin: 2, nMax: 2,
+  shiftMin: 0, shiftMax: 0, zeroMin: 0, zeroMax: 2, loopAllowed: false,
+  maxResults: 10, words: new Set(['あい']),
+});
+assert(ignoredUnsupported.results.some((entry) => entry.positions.join(',') === '1,3'));
 
 console.log(`ok: ${result.results.length} results, ${result.operations} operations`);
