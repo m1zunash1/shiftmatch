@@ -14,6 +14,7 @@ const words = new Set([
 assert.equal(core.normalizeKana('ショウユ'), 'しようゆ');
 assert.equal(core.normalizeKana('しょうゆ'), 'しようゆ');
 assert.equal(core.normalizeDictionaryWord('しょうゆ'), 'しょうゆ');
+assert.equal(core.normalizeDictionaryWord('CAT'), 'cat');
 assert(words.has('しょうゆ'));
 assert(!words.has('しようゆ'));
 
@@ -26,6 +27,7 @@ const result = core.search({
   shiftMax: 5,
   zeroMin: 1,
   zeroMax: 1,
+  loopAllowed: false,
   maxResults: 5000,
   operationLimit: 5000000,
   words,
@@ -41,7 +43,37 @@ for (const expected of [
 
 assert.throws(() => core.search({
   sources: ['あい', 'あいう'], parentSmallKana: true, nMin: 1, nMax: 1,
-  shiftMin: 0, shiftMax: 0, zeroMin: 1, zeroMax: 1, words,
+  shiftMin: 0, shiftMax: 0, zeroMin: 1, zeroMax: 1, loopAllowed: false, words,
 }), /長さをそろえて/);
+
+const alphabetLoop = core.search({
+  sources: ['z', 'a'], parentSmallKana: true, nMin: 1, nMax: 1,
+  shiftMin: 1, shiftMax: 1, zeroMin: 0, zeroMax: 1, loopAllowed: true,
+  maxResults: 10, words: new Set(['a', 'b']),
+});
+assert(alphabetLoop.results.some((entry) => entry.words.join('/') === 'a/b'));
+
+const alphabetNoLoop = core.search({
+  sources: ['z', 'a'], parentSmallKana: true, nMin: 1, nMax: 1,
+  shiftMin: 1, shiftMax: 1, zeroMin: 0, zeroMax: 1, loopAllowed: false,
+  maxResults: 10, words: new Set(['a', 'b']),
+});
+assert.equal(alphabetNoLoop.results.length, 0);
+
+const mixedScripts = core.search({
+  sources: ['か', 'f'], parentSmallKana: true, nMin: 1, nMax: 1,
+  shiftMin: 1, shiftMax: 1, zeroMin: 0, zeroMax: 1, loopAllowed: false,
+  maxResults: 10, words: new Set(['き', 'g']),
+});
+assert(mixedScripts.results.some((entry) => entry.words.join('/') === 'き/g'));
+
+const pickup = core.search({
+  sources: ['abcd', 'abcd'], parentSmallKana: true, nMin: 2, nMax: 2,
+  shiftMin: 0, shiftMax: 0, zeroMin: 0, zeroMax: 2, loopAllowed: false,
+  positionGroups: [0, 0, 1, 1], maxResults: 100,
+  words: new Set(['ac', 'ad', 'bc', 'bd', 'ca', 'cb', 'da', 'db']),
+});
+assert(pickup.results.length > 0);
+assert(pickup.results.every((entry) => new Set(entry.positions.map((position) => (position <= 2 ? 0 : 1))).size === 2));
 
 console.log(`ok: ${result.results.length} results, ${result.operations} operations`);

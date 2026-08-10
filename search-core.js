@@ -2,6 +2,7 @@
   'use strict';
 
   const GOJUON = Array.from('あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん');
+  const ALPHABET = Array.from('abcdefghijklmnopqrstuvwxyz');
   const SMALL_KANA = {
     ぁ: 'あ', ぃ: 'い', ぅ: 'う', ぇ: 'え', ぉ: 'お',
     ゃ: 'や', ゅ: 'ゆ', ょ: 'よ', ゎ: 'わ',
@@ -15,7 +16,8 @@
     const normalized = String(value || '')
       .normalize('NFKC')
       .replace(/[\s　]+/g, '')
-      .replace(/[ァ-ヶ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60));
+      .replace(/[ァ-ヶ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60))
+      .toLowerCase();
     if (!parentSmallKana) return normalized;
     return splitChars(normalized).map((char) => SMALL_KANA[char] || char).join('');
   }
@@ -24,7 +26,8 @@
     return String(value || '')
       .normalize('NFKC')
       .trim()
-      .replace(/[ァ-ヶ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60));
+      .replace(/[ァ-ヶ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60))
+      .toLowerCase();
   }
 
   function parseDictionary(text) {
@@ -40,12 +43,18 @@
     return { children: new Map(), terminal: false };
   }
 
+  function sequenceForChar(char) {
+    if (GOJUON.includes(char)) return GOJUON;
+    if (ALPHABET.includes(char)) return ALPHABET;
+    return null;
+  }
+
   function buildTrie(words, allowedLengths) {
     const root = makeTrieNode();
     for (const word of words) {
       const chars = splitChars(word);
       if (allowedLengths && !allowedLengths.has(chars.length)) continue;
-      if (chars.some((char) => !GOJUON.includes(char))) continue;
+      if (chars.some((char) => !sequenceForChar(char))) continue;
       let node = root;
       for (const char of chars) {
         if (!node.children.has(char)) node.children.set(char, makeTrieNode());
@@ -62,19 +71,24 @@
     if (sources.some((value) => !value)) throw new Error('使用する文字列をすべて入力してください。');
     const lengths = sources.map((value) => splitChars(value).length);
     if (!lengths.every((length) => length === lengths[0])) throw new Error('文字列の長さをそろえてください。');
-    const unsupported = [...new Set(sources.flatMap((value) => splitChars(value)).filter((char) => !GOJUON.includes(char)))];
-    if (unsupported.length) throw new Error(`五十音順にない文字が含まれています：${unsupported.join('、')}`);
+    const unsupported = [...new Set(sources.flatMap((value) => splitChars(value)).filter((char) => !sequenceForChar(char)))];
+    if (unsupported.length) throw new Error(`シフトできない文字が含まれています：${unsupported.join('、')}`);
     const maxLength = lengths[0];
     const numericKeys = ['nMin', 'nMax', 'shiftMin', 'shiftMax', 'zeroMin', 'zeroMax'];
     for (const key of numericKeys) {
       if (!Number.isInteger(config[key])) throw new Error('検索設定には整数を指定してください。');
     }
     if (config.nMin < 1 || config.nMax < config.nMin || config.nMax > maxLength) {
-      throw new Error(`Nは1〜${maxLength}の範囲で指定してください。`);
+      throw new Error(`拾う文字数は1〜${maxLength}の範囲で指定してください。`);
     }
     if (config.shiftMin > config.shiftMax) throw new Error('シフト最小値は最大値以下にしてください。');
     if (config.zeroMin < 0 || config.zeroMax < config.zeroMin || config.zeroMax > config.nMax) {
       throw new Error('0シフト個数の範囲が不正です。');
+    }
+    if (config.positionGroups) {
+      if (config.positionGroups.length !== maxLength) throw new Error('pick up区画の位置情報が不正です。');
+      const groupCount = new Set(config.positionGroups).size;
+      if (config.nMax < groupCount) throw new Error('拾う文字数はカンマ区画の数以上にしてください。');
     }
     return { sources, sourceChars: sources.map(splitChars), maxLength };
   }
@@ -101,7 +115,16 @@
 
       function choosePosition(depth) {
         if (results.length >= maxResults || operations >= operationLimit) return;
+        if (config.positionGroups) {
+          const covered = new Set(positions.map((position) => config.positionGroups[position])).size;
+          const groupCount = new Set(config.positionGroups).size;
+          if (groupCount - covered > n - depth) return;
+        }
         if (depth === n) {
+          if (config.positionGroups) {
+            const covered = new Set(positions.map((position) => config.positionGroups[position])).size;
+            if (covered !== new Set(config.positionGroups).size) return;
+          }
           const nodes = sources.map(() => trie);
           const outputChars = sources.map(() => []);
           const shiftVector = [];
@@ -132,12 +155,14 @@
               let valid = true;
               for (let sourceIndex = 0; sourceIndex < sourceChars.length; sourceIndex += 1) {
                 const sourceChar = sourceChars[sourceIndex][position];
-                const shiftedIndex = GOJUON.indexOf(sourceChar) + shift;
-                if (shiftedIndex < 0 || shiftedIndex >= GOJUON.length) {
+                const sequence = sequenceForChar(sourceChar);
+                const rawShiftedIndex = sequence.indexOf(sourceChar) + shift;
+                if (!config.loopAllowed && (rawShiftedIndex < 0 || rawShiftedIndex >= sequence.length)) {
                   valid = false;
                   break;
                 }
-                const shiftedChar = GOJUON[shiftedIndex];
+                const shiftedIndex = ((rawShiftedIndex % sequence.length) + sequence.length) % sequence.length;
+                const shiftedChar = sequence[shiftedIndex];
                 const nextNode = nodes[sourceIndex].children.get(shiftedChar);
                 if (!nextNode) {
                   valid = false;
@@ -192,7 +217,7 @@
     return { results, operations, truncatedByLimit, truncatedByResults, normalizedSources: sources };
   }
 
-  const api = { GOJUON, SMALL_KANA, normalizeKana, normalizeDictionaryWord, parseDictionary, buildTrie, search };
+  const api = { GOJUON, ALPHABET, SMALL_KANA, normalizeKana, normalizeDictionaryWord, parseDictionary, buildTrie, sequenceForChar, search };
   globalScope.ShiftMatchCore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

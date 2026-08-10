@@ -3,7 +3,13 @@ import { resolve } from 'node:path';
 
 const projectRoot = new URL('.', import.meta.url).pathname;
 const dictionaryRoot = resolve(projectRoot, '../../nazo/dictionaries');
-const files = { kobuta: 'kobuta.txt', general: 'general.txt', item: 'item.txt' };
+const files = {
+  kobuta: 'kobuta.txt',
+  general: 'general.txt',
+  item: 'item.txt',
+  english: 'english.txt',
+  roma: 'roma.txt',
+};
 const payload = {};
 
 for (const [key, filename] of Object.entries(files)) {

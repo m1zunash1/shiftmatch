@@ -2,6 +2,8 @@ const DICT_LABELS = {
   kobuta: '仔豚辞書',
   general: '一般語辞書',
   item: 'イラスト辞書',
+  english: '英語辞書',
+  roma: 'ローマ字辞書',
 };
 
 const state = {
@@ -15,15 +17,14 @@ const sourceEls = [
   document.getElementById('source2'),
   document.getElementById('source3'),
 ];
+const source3CardEl = document.getElementById('source3Card');
+const toggleSource3El = document.getElementById('toggleSource3');
 const inputMetaEl = document.getElementById('inputMeta');
 const nMinEl = document.getElementById('nMin');
 const nMaxEl = document.getElementById('nMax');
 const shiftMinEl = document.getElementById('shiftMin');
 const shiftMaxEl = document.getElementById('shiftMax');
-const zeroModeEl = document.getElementById('zeroMode');
-const zeroCustomEl = document.getElementById('zeroCustom');
-const zeroMinEl = document.getElementById('zeroMin');
-const zeroMaxEl = document.getElementById('zeroMax');
+const loopAllowedEl = document.getElementById('loopAllowed');
 const maxResultsEl = document.getElementById('maxResults');
 const searchBtnEl = document.getElementById('searchBtn');
 const errorBoxEl = document.getElementById('errorBox');
@@ -71,42 +72,97 @@ function mergedWords(ids) {
   return words;
 }
 
-function currentSources() {
-  return sourceEls.map((el) => el.value).filter((value, index) => index < 2 || value.trim());
+function activeSourceEls() {
+  return source3CardEl.hidden ? sourceEls.slice(0, 2) : sourceEls;
 }
 
-function zeroRange(nMax) {
-  if (zeroModeEl.value === 'none') return [0, 0];
-  if (zeroModeEl.value === 'one') return [1, 1];
-  if (zeroModeEl.value === 'custom') return [Number(zeroMinEl.value), Number(zeroMaxEl.value)];
-  return [0, nMax];
+function parseSourceSections(rawValue) {
+  const commaNormalized = String(rawValue || '').normalize('NFKC').replaceAll('，', ',');
+  const rawSections = commaNormalized.split(',').map((section) => section.trim());
+  if (rawSections.some((section) => !section)) throw new Error('文字列を入力してください。');
+  const sections = rawSections.map((section) => ShiftMatchCore.normalizeKana(section, true));
+  return { sections, hasComma: rawSections.length > 1 };
+}
+
+function parseAllSources(requireValues = true) {
+  const parsed = activeSourceEls().map((el) => {
+    if (!el.value.trim()) {
+      if (requireValues) throw new Error('文字列を入力してください。');
+      return null;
+    }
+    return parseSourceSections(el.value);
+  });
+  if (parsed.some((entry) => entry === null)) return null;
+
+  const pickupEnabled = parsed.some((entry) => entry.hasComma);
+  let positionGroups = null;
+  if (pickupEnabled) {
+    const sectionCounts = parsed.map((entry) => entry.sections.length);
+    const allLengths = parsed.flatMap((entry) => entry.sections.map((section) => Array.from(section).length));
+    const sameCount = sectionCounts.every((count) => count === sectionCounts[0]);
+    const sameLength = allLengths.every((length) => length === allLengths[0]);
+    if (!sameCount || !sameLength) {
+      throw new Error('カンマで区切られた文字列はいずれも同じ長さにしてください');
+    }
+    positionGroups = [];
+    for (let group = 0; group < sectionCounts[0]; group += 1) {
+      for (let index = 0; index < allLengths[0]; index += 1) positionGroups.push(group);
+    }
+  }
+
+  const sources = parsed.map((entry) => entry.sections.join(''));
+  const sourceLengths = sources.map((source) => Array.from(source).length);
+  if (!sourceLengths.every((length) => length === sourceLengths[0])) {
+    if (pickupEnabled) throw new Error('カンマで区切られた文字列はいずれも同じ長さにしてください');
+    throw new Error('文字列はいずれも同じ長さにしてください。');
+  }
+  return { sources, positionGroups, pickupEnabled, sectionCount: parsed[0].sections.length };
 }
 
 function updateInputMeta() {
-  const sources = currentSources().map((value) => ShiftMatchCore.normalizeKana(value, true));
-  if (!sources[0] && !sources[1]) {
+  if (activeSourceEls().every((el) => !el.value.trim())) {
     inputMetaEl.textContent = '未入力';
     inputMetaEl.className = 'pill muted';
     return;
   }
-  const lengths = sources.map((value) => Array.from(value).length);
-  const valid = sources.length >= 2 && sources.every(Boolean) && lengths.every((length) => length === lengths[0]);
-  inputMetaEl.textContent = valid ? `${sources.length}文字列 / 各${lengths[0]}文字` : `文字数: ${lengths.join(' / ')}`;
-  inputMetaEl.className = valid ? 'pill' : 'pill muted';
+  try {
+    const parsed = parseAllSources(false);
+    if (!parsed) {
+      inputMetaEl.textContent = '未入力あり';
+      inputMetaEl.className = 'pill muted';
+      return;
+    }
+    const length = Array.from(parsed.sources[0]).length;
+    inputMetaEl.textContent = `${parsed.sources.length}文字列 / 各${length}文字${parsed.pickupEnabled ? ` / ${parsed.sectionCount}区画` : ''}`;
+    inputMetaEl.className = 'pill';
+  } catch (_error) {
+    inputMetaEl.textContent = '入力を確認してください';
+    inputMetaEl.className = 'pill muted';
+  }
 }
 
 function validateForm() {
-  const sources = currentSources();
+  const parsedSources = parseAllSources(true);
   const dictIds = selectedDictIds();
   const nMin = Number(nMinEl.value);
   const nMax = Number(nMaxEl.value);
   const shiftMin = Number(shiftMinEl.value);
   const shiftMax = Number(shiftMaxEl.value);
   const maxResults = Number(maxResultsEl.value);
-  const [zeroMin, zeroMax] = zeroRange(nMax);
   if (dictIds.length === 0) throw new Error('辞書を1つ以上選んでください。');
   if (!Number.isInteger(maxResults) || maxResults < 1) throw new Error('最大表示件数は1以上の整数で指定してください。');
-  return { sources, dictIds, nMin, nMax, shiftMin, shiftMax, zeroMin, zeroMax, maxResults };
+  return {
+    ...parsedSources,
+    dictIds,
+    nMin,
+    nMax,
+    shiftMin,
+    shiftMax,
+    zeroMin: 0,
+    zeroMax: nMax,
+    loopAllowed: loopAllowedEl.checked,
+    maxResults,
+  };
 }
 
 function dictIdsFor(word, selectedIds) {
@@ -114,20 +170,9 @@ function dictIdsFor(word, selectedIds) {
 }
 
 function sortRows(rows, order) {
-  const compareNumberArrays = (left, right) => {
-    for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
-      if (left[index] !== right[index]) return left[index] - right[index];
-    }
-    return left.length - right.length;
-  };
   return [...rows].sort((a, b) => {
-    if (order === 'word') return a.words.join('|').localeCompare(b.words.join('|'), 'ja');
-    if (order === 'shift') {
-      const aTotal = a.shifts.reduce((sum, shift) => sum + Math.abs(shift), 0);
-      const bTotal = b.shifts.reduce((sum, shift) => sum + Math.abs(shift), 0);
-      return aTotal - bTotal || a.words.join('|').localeCompare(b.words.join('|'), 'ja');
-    }
-    return a.n - b.n || compareNumberArrays(a.positions, b.positions) || compareNumberArrays(a.shifts, b.shifts);
+    const lengthDiff = order === 'long' ? b.n - a.n : a.n - b.n;
+    return lengthDiff || a.words.join('|').localeCompare(b.words.join('|'), 'ja');
   });
 }
 
@@ -152,7 +197,7 @@ function renderWordLine(row, sourceIndex, selectedIds) {
     .join('');
   return `
     <div class="word-line source-${sourceIndex + 1}">
-      <span class="word-label">w_${sourceIndex + 1}</span>
+      <span class="word-label">${sourceIndex + 1}</span>
       <div>
         <div class="move-line">${cells}</div>
         <div class="result-meta">${tags}</div>
@@ -170,19 +215,15 @@ function renderResults() {
     resultsEl.innerHTML = '<div class="empty">ヒットなし</div>';
     return;
   }
-  resultsEl.innerHTML = rows.map((row, index) => {
-    const title = row.words.map(escapeHtml).join(' / ');
-    const positions = row.positions.join('→');
-    return `
-      <article class="result-item" style="--result-index:${index}">
-        <div class="result-head">
-          <div class="result-title">${index + 1}. ${title}</div>
-          <div class="pattern-badge">N=${row.n} / ${escapeHtml(positions)}文字目</div>
-        </div>
-        ${row.words.map((_word, sourceIndex) => renderWordLine(row, sourceIndex, settings.dictIds)).join('')}
-      </article>
-    `;
-  }).join('');
+  resultsEl.innerHTML = rows.map((row, index) => `
+    <article class="result-item" style="--result-index:${index}">
+      <div class="result-head">
+        <div class="result-title">${index + 1}. ${row.words.map(escapeHtml).join(' / ')}</div>
+        <div class="pattern-badge">${row.n}文字 / ${escapeHtml(row.positions.join('→'))}文字目</div>
+      </div>
+      ${row.words.map((_word, sourceIndex) => renderWordLine(row, sourceIndex, settings.dictIds)).join('')}
+    </article>
+  `).join('');
   if (result.truncatedByResults || result.truncatedByLimit) {
     resultsEl.insertAdjacentHTML('beforeend', '<div class="more-note">上限に達したため、検索結果を途中で打ち切っています。</div>');
   }
@@ -216,6 +257,14 @@ function runSearch() {
   }
 }
 
+function toggleSource3() {
+  source3CardEl.hidden = !source3CardEl.hidden;
+  toggleSource3El.textContent = source3CardEl.hidden ? '＋ 文字列3を追加' : '− 文字列3を削除';
+  if (source3CardEl.hidden) sourceEls[2].value = '';
+  else sourceEls[2].focus();
+  updateInputMeta();
+}
+
 function init() {
   loadDictionaries();
   updateInputMeta();
@@ -223,7 +272,7 @@ function init() {
     el.addEventListener('input', updateInputMeta);
     el.addEventListener('keydown', (event) => { if (event.key === 'Enter') runSearch(); });
   });
-  zeroModeEl.addEventListener('change', () => { zeroCustomEl.hidden = zeroModeEl.value !== 'custom'; });
+  toggleSource3El.addEventListener('click', toggleSource3);
   searchBtnEl.addEventListener('click', runSearch);
   sortOrderEl.addEventListener('change', renderResults);
 }

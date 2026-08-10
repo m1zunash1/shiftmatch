@@ -7,29 +7,28 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;700;800&family=M+PLUS+Rounded+1c:wght@700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=2" />
+    <link rel="stylesheet" href="styles.css?v=3" />
   </head>
   <body>
     <main class="container">
-      <header class="hero">
-        <div><h1>シフトマッチ検索</h1></div>
-      </header>
+      <header class="hero"><div><h1>シフトマッチ検索</h1></div></header>
 
       <section class="panel">
         <h2>入力</h2>
         <div class="input-grid">
           <label class="input-card c1">
-            <span class="input-head">w_1</span>
-            <input id="source1" type="text" autocomplete="off" spellcheck="false" placeholder="ひらがな文字列を入力" />
+            <span class="input-head">文字列1</span>
+            <input id="source1" type="text" autocomplete="off" spellcheck="false" placeholder="文字列を入力" />
           </label>
           <label class="input-card c2">
-            <span class="input-head">w_2</span>
-            <input id="source2" type="text" autocomplete="off" spellcheck="false" placeholder="w_1と同じ文字数で入力" />
+            <span class="input-head">文字列2</span>
+            <input id="source2" type="text" autocomplete="off" spellcheck="false" placeholder="文字列を入力" />
           </label>
-          <label class="input-card c3">
-            <span class="input-head">w_3（任意）</span>
-            <input id="source3" type="text" autocomplete="off" spellcheck="false" placeholder="使わない場合は空欄" />
+          <label class="input-card c3" id="source3Card" hidden>
+            <span class="input-head">文字列3</span>
+            <input id="source3" type="text" autocomplete="off" spellcheck="false" placeholder="文字列を入力" />
           </label>
+          <button id="toggleSource3" class="add-source" type="button">＋ 文字列3を追加</button>
         </div>
         <div class="note-row"><div id="inputMeta" class="pill muted">未入力</div></div>
       </section>
@@ -37,39 +36,26 @@
       <section class="panel">
         <h2>検索設定</h2>
         <div class="settings-grid">
-          <fieldset class="range-field">
-            <legend>拾う文字数 N</legend>
-            <div class="range-row">
-              <input id="nMin" type="number" min="1" value="2" aria-label="N最小" />
+          <label class="range-field field-group">
+            <span>拾う文字数</span>
+            <span class="range-row">
+              <input id="nMin" type="number" min="1" value="2" aria-label="拾う文字数の最小" />
               <span>〜</span>
-              <input id="nMax" type="number" min="1" value="2" aria-label="N最大" />
-            </div>
-          </fieldset>
-          <fieldset class="range-field">
-            <legend>シフト数</legend>
-            <div class="range-row">
+              <input id="nMax" type="number" min="1" value="2" aria-label="拾う文字数の最大" />
+            </span>
+          </label>
+          <label class="range-field field-group">
+            <span>シフト数</span>
+            <span class="range-row">
               <input id="shiftMin" type="number" value="-5" aria-label="シフト最小" />
               <span>〜</span>
               <input id="shiftMax" type="number" value="5" aria-label="シフト最大" />
-            </div>
-          </fieldset>
-          <label class="field-row">
-            <span>0シフトの個数</span>
-            <select id="zeroMode">
-              <option value="any" selected>制限なし</option>
-              <option value="none">0個</option>
-              <option value="one">ちょうど1個</option>
-              <option value="custom">範囲指定</option>
-            </select>
+            </span>
           </label>
-          <fieldset id="zeroCustom" class="range-field" hidden>
-            <legend>0シフト数</legend>
-            <div class="range-row">
-              <input id="zeroMin" type="number" min="0" value="0" aria-label="0シフト最小" />
-              <span>〜</span>
-              <input id="zeroMax" type="number" min="0" value="1" aria-label="0シフト最大" />
-            </div>
-          </fieldset>
+          <label class="loop-check">
+            <input id="loopAllowed" type="checkbox" />
+            <span>シフトのループを許容<small>「ん→あ→い…」「z→a→b…」をOKにする</small></span>
+          </label>
           <label class="field-row short">
             <span>最大表示件数</span>
             <input id="maxResults" type="number" min="1" max="50000" value="500" />
@@ -92,6 +78,13 @@
                 <label><input type="checkbox" name="targetDict" value="item" checked /> イラスト辞書</label>
               </div>
             </div>
+            <div class="dict-group">
+              <h3>英語辞書</h3>
+              <div class="dict-grid">
+                <label><input type="checkbox" name="targetDict" value="english" checked /> 英語辞書</label>
+                <label><input type="checkbox" name="targetDict" value="roma" /> ローマ字辞書</label>
+              </div>
+            </div>
           </div>
         </fieldset>
       </section>
@@ -102,9 +95,8 @@
           <div class="sort-row">
             <label for="sortOrder">並び順</label>
             <select id="sortOrder">
-              <option value="position">位置順</option>
-              <option value="word">五十音順</option>
-              <option value="shift">シフト量順</option>
+              <option value="long" selected>文字数が長い順</option>
+              <option value="short">文字数が短い順</option>
             </select>
           </div>
         </div>
@@ -113,8 +105,8 @@
       </section>
     </main>
 
-    <script src="dict-data.js?v=2"></script>
-    <script src="search-core.js?v=2"></script>
-    <script src="app.js?v=2"></script>
+    <script src="dict-data.js?v=3"></script>
+    <script src="search-core.js?v=3"></script>
+    <script src="app.js?v=3"></script>
   </body>
 </html>

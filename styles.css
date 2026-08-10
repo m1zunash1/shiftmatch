@@ -46,7 +46,7 @@ h1 { margin: 0 0 4px; color: var(--accent-strong); font: 800 34px "M PLUS Rounde
 .pill,.summary-badge,.dict-tag,.pattern-badge { display: inline-block; border-radius: 999px; font-weight: 700; }
 .pill { padding: 6px 10px; color: var(--accent-strong); background: var(--badge); font-size: 13px; }
 .pill.muted { color: var(--muted); }
-input,button,select { padding: 9px 10px; border: 1px solid #cdbbdc; border-radius: 12px; font: 15px inherit; }
+input,button,select { padding: 9px 10px; border: 1px solid #cdbbdc; border-radius: 12px; font-family: inherit; font-size: 15px; }
 input,select { color: var(--text); background: #fff; transition: border-color .22s ease, box-shadow .22s ease, transform .22s ease; }
 input:hover,select:hover { border-color: #b9a3d1; }
 input:focus,select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(75,155,131,.2); transform: translateY(-1px); }
@@ -54,11 +54,17 @@ button { color: #245f50; background: #e6f4ef; cursor: pointer; box-shadow: 1px 2
 button:hover { filter: brightness(.98); transform: translateY(-1px) scale(1.025); }
 button:active { transform: translateY(1px) scale(.985); }
 .search { min-width: 180px; color: #fff; background: var(--accent); border-color: var(--accent); font-weight: 800; }
+.add-source { grid-column: 1 / -1; justify-self: start; padding: 7px 12px; border-style: dashed; box-shadow: none; font-size: 13px; font-weight: 700; }
 fieldset { margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
 legend { padding: 0 6px; font-size: 13px; font-weight: 700; }
 .range-field { padding: 8px; }
+.field-group { display: grid; gap: 5px; color: var(--muted); background: #fff; border: 1px solid var(--line); border-radius: 14px; font-size: 13px; font-weight: 700; }
 .range-row { gap: 6px; flex-wrap: nowrap; }
 .range-row input { width: 82px; }
+.loop-check { display: flex; gap: 8px; align-items: center; min-height: 58px; padding: 8px 10px; color: var(--muted); background: #fff; border: 1px solid var(--line); border-radius: 14px; font-size: 13px; font-weight: 700; }
+.loop-check input { width: 18px; height: 18px; padding: 0; accent-color: var(--accent); }
+.loop-check span { display: grid; gap: 2px; }
+.loop-check small { font-size: 10px; font-weight: 400; }
 .dict-groups { display: grid; grid-template-columns: repeat(2,minmax(220px,1fr)); gap: 10px; padding: 8px; }
 .dict-group { padding: 8px; background: #fffafc; border: 1px solid #ddd2e8; border-radius: 12px; }
 .dict-group h3 { margin: 0 0 6px; color: #685276; font-size: 13px; }
