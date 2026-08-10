@@ -29,6 +29,8 @@ const maxResultsEl = document.getElementById('maxResults');
 const searchBtnEl = document.getElementById('searchBtn');
 const errorBoxEl = document.getElementById('errorBox');
 const sortOrderEl = document.getElementById('sortOrder');
+const resultFilterEl = document.getElementById('resultFilter');
+const filterErrorEl = document.getElementById('filterError');
 const summaryEl = document.getElementById('summary');
 const resultsEl = document.getElementById('results');
 
@@ -211,8 +213,21 @@ function renderWordLine(row, sourceIndex, selectedIds) {
 function renderResults() {
   if (!state.lastSearch) return;
   const { result, settings, elapsed } = state.lastSearch;
-  const rows = sortRows(result.results, sortOrderEl.value);
-  summaryEl.textContent = `ヒット数: ${rows.length} / ${elapsed}ms`;
+  let rows = result.results;
+  const pattern = resultFilterEl.value;
+  filterErrorEl.textContent = '';
+  if (pattern) {
+    try {
+      const expression = new RegExp(pattern, 'i');
+      rows = rows.filter((row) => row.words.some((word) => expression.test(word)));
+    } catch (_error) {
+      filterErrorEl.textContent = '正規表現が正しくありません。';
+    }
+  }
+  rows = sortRows(rows, sortOrderEl.value);
+  summaryEl.textContent = pattern
+    ? `表示: ${rows.length}件 / 全${result.results.length}件 / ${elapsed}ms`
+    : `ヒット数: ${rows.length} / ${elapsed}ms`;
   if (rows.length === 0) {
     resultsEl.innerHTML = '<div class="empty">ヒットなし</div>';
     return;
@@ -277,6 +292,7 @@ function init() {
   toggleSource3El.addEventListener('click', toggleSource3);
   searchBtnEl.addEventListener('click', runSearch);
   sortOrderEl.addEventListener('change', renderResults);
+  resultFilterEl.addEventListener('input', renderResults);
 }
 
 try {

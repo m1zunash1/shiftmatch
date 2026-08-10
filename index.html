@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;700;800&family=M+PLUS+Rounded+1c:wght@700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=4" />
+    <link rel="stylesheet" href="styles.css?v=5" />
   </head>
   <body>
     <main class="container">
@@ -39,9 +39,9 @@
           <label class="range-field field-group">
             <span>拾う文字数</span>
             <span class="range-row">
-              <input id="nMin" type="number" min="1" value="2" aria-label="拾う文字数の最小" />
+              <input id="nMin" type="number" min="1" value="1" aria-label="拾う文字数の最小" />
               <span>〜</span>
-              <input id="nMax" type="number" min="1" value="2" aria-label="拾う文字数の最大" />
+              <input id="nMax" type="number" min="1" value="5" aria-label="拾う文字数の最大" />
             </span>
           </label>
           <label class="range-field field-group">
@@ -92,14 +92,21 @@
       <section class="panel">
         <div class="results-header">
           <h2>結果</h2>
-          <div class="sort-row">
-            <label for="sortOrder">並び順</label>
-            <select id="sortOrder">
-              <option value="long" selected>文字数が長い順</option>
-              <option value="short">文字数が短い順</option>
-            </select>
+          <div class="result-tools">
+            <label class="result-filter" for="resultFilter">
+              <span>結果を絞り込み</span>
+              <input id="resultFilter" type="search" autocomplete="off" spellcheck="false" placeholder="正規表現を入力" />
+            </label>
+            <div class="sort-row">
+              <label for="sortOrder">並び順</label>
+              <select id="sortOrder">
+                <option value="long" selected>文字数が長い順</option>
+                <option value="short">文字数が短い順</option>
+              </select>
+            </div>
           </div>
         </div>
+        <div id="filterError" class="filter-error" aria-live="polite"></div>
         <div class="summary-row"><div id="summary" class="summary-badge">まだ検索していません</div></div>
         <div id="results"></div>
       </section>
@@ -107,6 +114,6 @@
 
     <script src="dict-data.js?v=3"></script>
     <script src="search-core.js?v=4"></script>
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=5"></script>
   </body>
 </html>
