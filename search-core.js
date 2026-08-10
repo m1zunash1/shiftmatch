@@ -20,10 +20,17 @@
     return splitChars(normalized).map((char) => SMALL_KANA[char] || char).join('');
   }
 
-  function parseDictionary(text, parentSmallKana = true) {
+  function normalizeDictionaryWord(value) {
+    return String(value || '')
+      .normalize('NFKC')
+      .trim()
+      .replace(/[ァ-ヶ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60));
+  }
+
+  function parseDictionary(text) {
     const words = new Set();
     for (const raw of String(text || '').split(/\r?\n/)) {
-      const word = normalizeKana(raw.trim(), parentSmallKana);
+      const word = normalizeDictionaryWord(raw);
       if (word) words.add(word);
     }
     return words;
@@ -185,7 +192,7 @@
     return { results, operations, truncatedByLimit, truncatedByResults, normalizedSources: sources };
   }
 
-  const api = { GOJUON, SMALL_KANA, normalizeKana, parseDictionary, buildTrie, search };
+  const api = { GOJUON, SMALL_KANA, normalizeKana, normalizeDictionaryWord, parseDictionary, buildTrie, search };
   globalScope.ShiftMatchCore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

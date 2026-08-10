@@ -13,6 +13,9 @@ const words = new Set([
 
 assert.equal(core.normalizeKana('ショウユ'), 'しようゆ');
 assert.equal(core.normalizeKana('しょうゆ'), 'しようゆ');
+assert.equal(core.normalizeDictionaryWord('しょうゆ'), 'しょうゆ');
+assert(words.has('しょうゆ'));
+assert(!words.has('しようゆ'));
 
 const result = core.search({
   sources: ['ひとさしなか', 'しょうゆしお'],
