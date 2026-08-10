@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="複数のかな文字列から同じ位置を拾い、同じ五十音シフトで全て単語になる組を探します。" />
+    <title>シフトマッチ検索</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;600;700;800&family=M+PLUS+Rounded+1c:wght@700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="hero">
+        <div class="hero-mark" aria-hidden="true">あ<span>↔</span>か</div>
+        <div>
+          <p class="eyebrow">KANA LINKED SHIFT FINDER</p>
+          <h1>シフトマッチ検索</h1>
+          <p class="sub">同じ位置、同じシフト。すべての列で単語になる組を見つけます。</p>
+        </div>
+      </header>
+
+      <section class="panel input-panel">
+        <div class="section-title">
+          <div><span class="step">01</span><h2>文字列</h2></div>
+          <div id="inputMeta" class="status-pill">2列・各6文字</div>
+        </div>
+        <div class="input-grid">
+          <label class="source-card source-1">
+            <span>w_1</span>
+            <input id="source1" value="ひとさしなか" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="source-card source-2">
+            <span>w_2</span>
+            <input id="source2" value="しょうゆしお" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="source-card source-3" id="source3Card" hidden>
+            <span>w_3</span>
+            <input id="source3" autocomplete="off" spellcheck="false" placeholder="3つ目の文字列" />
+          </label>
+          <button id="toggleSource3" class="add-source" type="button">＋ w_3を追加</button>
+        </div>
+        <label class="inline-check">
+          <input id="parentSmallKana" type="checkbox" checked />
+          <span>小さい「ゃゅょ」などを親文字として扱う</span>
+        </label>
+      </section>
+
+      <section class="panel">
+        <div class="section-title"><div><span class="step">02</span><h2>検索条件</h2></div></div>
+        <div class="settings-grid">
+          <fieldset class="setting-group">
+            <legend>拾う文字数 N</legend>
+            <div class="range-pair">
+              <label>最小<input id="nMin" type="number" min="1" value="2" /></label>
+              <span>〜</span>
+              <label>最大<input id="nMax" type="number" min="1" value="2" /></label>
+            </div>
+          </fieldset>
+          <fieldset class="setting-group">
+            <legend>シフト数</legend>
+            <div class="range-pair signed">
+              <label>最小<input id="shiftMin" type="number" value="-5" /></label>
+              <span>〜</span>
+              <label>最大<input id="shiftMax" type="number" value="5" /></label>
+            </div>
+          </fieldset>
+          <label class="select-field">
+            <span>0シフトの個数</span>
+            <select id="zeroMode">
+              <option value="any">制限しない</option>
+              <option value="none">0個</option>
+              <option value="one" selected>ちょうど1個</option>
+              <option value="custom">範囲指定</option>
+            </select>
+          </label>
+          <fieldset id="zeroCustom" class="setting-group compact" hidden>
+            <legend>0シフト範囲</legend>
+            <div class="range-pair">
+              <label>最小<input id="zeroMin" type="number" min="0" value="0" /></label>
+              <span>〜</span>
+              <label>最大<input id="zeroMax" type="number" min="0" value="1" /></label>
+            </div>
+          </fieldset>
+          <label class="select-field">
+            <span>最大表示件数</span>
+            <input id="maxResults" type="number" min="1" max="20000" value="1000" />
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title"><div><span class="step">03</span><h2>辞書</h2></div></div>
+        <div class="dict-grid">
+          <label class="dict-choice"><input type="checkbox" name="dict" value="kobuta" checked /><span><b>仔豚辞書</b><small>語彙を広く検索</small></span></label>
+          <label class="dict-choice"><input type="checkbox" name="dict" value="general" checked /><span><b>一般語辞書</b><small>一般的な日本語</small></span></label>
+          <label class="dict-choice"><input type="checkbox" name="dict" value="item" /><span><b>イラスト辞書</b><small>描きやすい具体物</small></span></label>
+        </div>
+        <div class="action-row">
+          <div id="errorBox" class="error-box" role="alert" aria-live="polite"></div>
+          <button id="searchButton" class="primary-button" type="button"><span>検索する</span><b>→</b></button>
+        </div>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="section-title result-title">
+          <div><span class="step">04</span><h2>検索結果</h2></div>
+          <div class="result-actions">
+            <label>並び順
+              <select id="sortOrder">
+                <option value="positions">位置順</option>
+                <option value="shift">シフトの小さい順</option>
+                <option value="words">単語順</option>
+              </select>
+            </label>
+            <button id="csvButton" class="secondary-button" type="button" disabled>CSV保存</button>
+          </div>
+        </div>
+        <div id="summary" class="summary">まだ検索していません。</div>
+        <div id="results" class="results-empty">条件を設定して「検索する」を押してください。</div>
+      </section>
+    </main>
+
+    <script src="dict-data.js"></script>
+    <script src="search-core.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
